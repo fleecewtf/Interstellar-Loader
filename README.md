@@ -37,7 +37,7 @@ The loader supports the **Windows x64 Steam version of Gorilla Tag** and **BepIn
 <details>
 <summary><strong>Do I need to move the menu DLL myself?</strong></summary>
 
-No. The loader includes an approved Interstellar Menu build and installs it into your game's **BepInEx/plugins** folder. You can reinstall it through **Manage → Install / repair menu**.
+No. The loader downloads the latest published Interstellar Menu release and installs it into your game's **BepInEx/plugins** folder. It also includes an approved menu build for use when no online release is available. You can reinstall it through **Manage → Install / repair menu**.
 
 If you previously installed Interstellar manually, close the game and remove the old Interstellar DLL before installing through the loader.
 
@@ -66,9 +66,13 @@ If the launcher says the game is running without a connection, close Gorilla Tag
 <details>
 <summary><strong>How do I update or remove it?</strong></summary>
 
-Download the latest loader EXE from [Releases](https://github.com/fleecewtf/Interstellar-Loader/releases), close the previous loader, and open the new one. With Gorilla Tag closed, use **Install / repair menu** to install the menu build included with it.
+The loader checks both Interstellar GitHub release feeds every **15 seconds**, including while it is in the tray. Enable **Settings → Auto-update menu** and **Auto-update loader** to install new releases automatically.
 
-The current version has separate automatic update settings, but automatic downloading and replacement are not connected yet. Use Releases for updates for now.
+Menu updates wait until Gorilla Tag is closed and preserve your startup preference. Loader updates show download progress, restart the loader, and restore the previous loader if the new build cannot start. Downloads are checked against GitHub's SHA-256 digest and the expected Interstellar assembly identity and version.
+
+Turning either automatic update option off still lets you check for new releases. You can also download the latest EXE from [Releases](https://github.com/fleecewtf/Interstellar-Loader/releases) and replace the old loader manually, or use **Install / repair menu** to install the latest menu release.
+
+Restoring a previous menu build turns off automatic menu updates so the restored build stays installed. You can enable them again in Settings. Offline or rate-limited checks retry without removing your installed files.
 
 To remove the menu, close Gorilla Tag and choose **Manage → Remove Interstellar**. To remove the loader, exit it fully and delete its EXE.
 

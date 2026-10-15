@@ -147,4 +147,19 @@ internal static class ReleaseCatalog
         ReleaseProduct.Loader => LoaderEntries,
         _ => throw new ArgumentOutOfRangeException(nameof(product))
     };
+
+    public static IReadOnlyList<ReleaseEntry> GetEntries(ReleaseProduct product, UpdateCandidate? latest)
+    {
+        var existing = GetEntries(product);
+        if (latest == null) return existing;
+        var entries = existing.Select(entry => new ReleaseEntry(entry.Version, entry.Title, false,
+            entry.Sections.ToArray())).ToList();
+        if (!entries.Any(entry => entry.Version == latest.Version))
+        {
+            var notes = string.IsNullOrWhiteSpace(latest.ReleaseNotes)
+                ? Array.Empty<ReleaseSection>() : new[] { new ReleaseSection("Release notes", latest.ReleaseNotes.Trim()) };
+            entries.Insert(0, new ReleaseEntry(latest.Version, "Latest release", false, notes));
+        }
+        return entries.AsReadOnly();
+    }
 }

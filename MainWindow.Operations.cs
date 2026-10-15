@@ -101,8 +101,12 @@ public partial class MainWindow
         GamePathLabel.ToolTip = status.GameDirectory;
         SettingsGamePath.Text = GamePathLabel.Text;
         SettingsGamePath.ToolTip = status.GameDirectory;
-        MenuStatusText.Text = status.MenuLoaded ? "Interstellar loaded" : status.MenuInstalled ? "Interstellar installed" : "Beta · v1.0.0";
-        ManageMenuStatus.Text = status.MenuLoaded ? "Loaded · v" + status.InstalledVersion : status.MenuInstalled ? (status.MenuManaged ? "Installed · v" : "Manual install · v") + status.InstalledVersion : "Ready to install · v1.0.0";
+        AboutLoaderVersion.Text = UpdateService.CurrentLoaderVersion;
+        AboutMenuVersion.Text = status.MenuInstalled && !string.IsNullOrEmpty(status.InstalledFileVersion)
+            ? status.InstalledFileVersion : latestReleaseCheck?.LatestMenuRelease?.Version ?? ReleaseService.CurrentMenuVersion;
+        VersionLabel.Text = "v" + AboutMenuVersion.Text;
+        MenuStatusText.Text = status.MenuLoaded ? "Interstellar loaded" : status.MenuInstalled ? "Interstellar installed" : "Ready to install · v" + AboutMenuVersion.Text;
+        ManageMenuStatus.Text = status.MenuLoaded ? "Loaded · v" + status.InstalledVersion : status.MenuInstalled ? (status.MenuManaged ? "Installed · v" : "Manual install · v") + status.InstalledVersion : "Ready to install · v" + AboutMenuVersion.Text;
         BepInExStatusText.Text = status.BepInExInstalled ? "Installed" : "Not installed";
         ResetMenuButton.IsEnabled = !operationRunning && status.MenuManaged && status.HasResettableMenuSettings;
         LoadButtonLabel.Text = operationRunning ? "Working" : !status.GameInstalled ? "Install Gorilla Tag" : status.MenuLoaded ? "Interstellar loaded" : status.GameRunning ? status.BridgeAvailable ? "Load Interstellar" : "Game is running" : !status.BepInExInstalled ? "Set up BepInEx" : !status.MenuInstalled ? "Install Interstellar" : preferences.LaunchWithMenu ? "Launch with Interstellar" : "Launch Gorilla Tag";
@@ -300,7 +304,15 @@ public partial class MainWindow
     private void Rollback_Click(object sender, RoutedEventArgs e)
     {
         if (!productionMode) return;
-        ConfirmOperation("Restore previous build", "Restore the previous verified Interstellar build saved by the loader. Gorilla Tag must be closed.", "Restore", () => GameService.RollbackAsync(preferences.GameDirectory, operationsLifetime.Token));
+        ConfirmOperation("Restore previous build", "Restore the previous verified Interstellar build saved by the loader. Gorilla Tag must be closed. Automatic menu updates will turn off so the restored build stays installed.", "Restore", async () =>
+        {
+            await GameService.RollbackAsync(preferences.GameDirectory, operationsLifetime.Token);
+            applyingPreferences = true;
+            preferences.AutoUpdateMenu = false;
+            AutoUpdateMenuToggle.IsChecked = false;
+            applyingPreferences = false;
+            SavePreferences();
+        });
     }
 
     private void OpenLogs_Click(object sender, RoutedEventArgs e)

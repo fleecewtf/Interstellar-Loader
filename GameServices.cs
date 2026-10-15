@@ -26,6 +26,8 @@ internal sealed class GameStatus
     public bool BepInExInstalled { get; internal set; }
 
     public string InstalledVersion { get; internal set; } = "";
+    public string InstalledFileVersion { get; internal set; } = "";
+    public string InstalledSha256 { get; internal set; } = "";
     public string Error { get; internal set; } = "";
 }
 
@@ -76,7 +78,12 @@ internal static class GameService
             result.MenuInstalled = menu != null;
             if (menu != null)
             {
-                try { result.InstalledVersion = AssemblyName.GetAssemblyName(menu).Version?.ToString(3) ?? ""; }
+                try
+                {
+                    result.InstalledFileVersion = AssemblyName.GetAssemblyName(menu).Version?.ToString(3) ?? "";
+                    result.InstalledVersion = result.InstalledFileVersion;
+                    result.InstalledSha256 = Hash(menu);
+                }
                 catch (Exception e) when (e is IOException || e is BadImageFormatException || e is UnauthorizedAccessException) { result.Error = "The installed menu file could not be read."; }
             }
             if (File.Exists(Path.Combine(result.GameDirectory, ManifestRelative)))
@@ -252,15 +259,17 @@ internal static class GameService
     public static string[] GetManagedFiles(string gameDirectory) => ReadOwnedManifest(RequireInstalled(gameDirectory)).Files.Select(f => f.FullPath).ToArray();
 
     public static Task InstallBundledMenuAsync(string? gameDirectory, byte[] payload, string expectedSha256,
-        bool loadOnStartup = false, CancellationToken cancellationToken = default) => Task.Run(() =>
+        bool loadOnStartup = false, CancellationToken cancellationToken = default, string? expectedVersion = null,
+        bool preserveStartupPreference = false) => Task.Run(() =>
     {
         lock (ManagedFilesLock)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (payload == null || payload.Length < 512 || payload.Length > 16777216 || expectedSha256 == null ||
+            Version releaseVersion = ReadMenuVersion(expectedVersion ?? ReleaseService.CurrentMenuVersion);
+            if (payload == null || payload.Length < 512 || payload.Length > 33554432 || expectedSha256 == null ||
                 !Regex.IsMatch(expectedSha256, "\\A[0-9a-fA-F]{64}\\z") ||
                 !HashBytes(payload).Equals(expectedSha256, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("The bundled menu failed its file check. Download a fresh beta loader.");
+                throw new InvalidOperationException("The menu failed its file check. Download the release again.");
             string directory = RequireInstalled(gameDirectory);
             RequireGameClosed();
             if (!File.Exists(SafeOwnedPath(directory, "BepInEx/core/BepInEx.dll")))
@@ -276,7 +285,7 @@ internal static class GameService
                 var root = document.CreateElement("Installation");
                 document.AppendChild(root);
                 root.SetAttribute("product", "Interstellar Menu");
-                root.SetAttribute("version", ReleaseService.CurrentMenuVersion);
+                root.SetAttribute("version", "1.0.0");
                 root.SetAttribute("gameDirectory", directory);
                 owned = new OwnedManifest(document, receiptPath, directory);
             }
@@ -288,6 +297,17 @@ internal static class GameService
                 if (!existing || menus.Length == 0 || !found.Equals(menuPath, StringComparison.OrdinalIgnoreCase))
                     throw new InvalidOperationException("An Interstellar DLL was installed manually. Move that DLL out of BepInEx/plugins, then install through this loader. Other files have been left alone.");
             foreach (var file in owned.Files) VerifyCurrent(file, allowChangedSettings: true);
+            string recordedVersion = owned.Document.DocumentElement!.GetAttribute("menuVersion");
+            if (recordedVersion.Length > 0 && ReadMenuVersion(recordedVersion) > releaseVersion)
+                throw new InvalidOperationException("A newer Interstellar Menu was installed here. An older build will not replace it.");
+            if (File.Exists(menuPath))
+            {
+                var installed = AssemblyName.GetAssemblyName(menuPath);
+                if (installed.Name != "Interstellar Menu" || installed.Version == null)
+                    throw new InvalidOperationException("The installed file is not Interstellar Menu. Existing files have been left alone.");
+                if (installed.Version > releaseVersion)
+                    throw new InvalidOperationException("A newer Interstellar Menu is already installed. An older build will not replace it.");
+            }
             OwnedFile menu = menus.Length == 1 ? menus[0] : AddOwnedFile(owned, menuRelative, "menu", expectedSha256);
             var startup = owned.Files.FirstOrDefault(file => file.RelativePath.Equals(StartupRelative, StringComparison.OrdinalIgnoreCase));
             if (startup == null)
@@ -299,14 +319,21 @@ internal static class GameService
             if (File.Exists(startup.FullPath) && !ReadBoundedText(startup.FullPath).Split('\r', '\n')
                 .Any(line => line.Trim().Equals("managed=true", StringComparison.OrdinalIgnoreCase)))
                 throw new InvalidOperationException("The startup configuration is not managed by the loader. Existing files have been left alone.");
+            if (preserveStartupPreference && File.Exists(startup.FullPath))
+            {
+                string[] choices = ReadBoundedText(startup.FullPath).Split('\r', '\n')
+                    .Select(line => line.Trim()).Where(line => line.StartsWith("loadOnStartup=", StringComparison.OrdinalIgnoreCase)).ToArray();
+                if (choices.Length != 1 || !bool.TryParse(choices[0].Substring("loadOnStartup=".Length).Trim(), out loadOnStartup))
+                    throw new InvalidOperationException("The Interstellar startup preference is invalid. Existing files have been left alone.");
+            }
             cancellationToken.ThrowIfCancellationRequested();
             var flags = startup;
             RunTransaction(owned, new[] { menu, flags }, existing ? "Repair menu" : "Install menu", transaction =>
             {
                 transaction.StageBytes(menu, payload, expectedSha256);
                 var identity = AssemblyName.GetAssemblyName(transaction.GetStagedPath(menu));
-                if (identity.Name != "Interstellar Menu" || identity.Version != new Version(1, 0, 0, 0))
-                    throw new InvalidOperationException("The bundled file is not Interstellar Menu 1.0.0.");
+                if (identity.Name != "Interstellar Menu" || identity.Version != releaseVersion)
+                    throw new InvalidOperationException("The file does not match Interstellar Menu " + releaseVersion.ToString(3) + ".");
                 transaction.StageText(flags, "[Loader]\nmanaged=true\nloadOnStartup=" + (loadOnStartup ? "true" : "false") + "\n");
                 if (File.Exists(menu.FullPath) && !menu.Sha256.Equals(expectedSha256, StringComparison.OrdinalIgnoreCase))
                     transaction.PreservePrevious(menu);
@@ -317,11 +344,20 @@ internal static class GameService
                 transaction.InstallStaged(flags);
                 menu.Element.SetAttribute("sha256", expectedSha256);
                 flags.Element.SetAttribute("sha256", Hash(flags.FullPath));
+                owned.Document.DocumentElement!.SetAttribute("menuVersion", releaseVersion.ToString(3));
                 transaction.BeforeManifestCommit();
                 SaveManifest(owned);
             });
         }
     }, cancellationToken);
+
+    private static Version ReadMenuVersion(string value)
+    {
+        if (!Regex.IsMatch(value, "\\A(?:0|[1-9][0-9]{0,4})\\.(?:0|[1-9][0-9]{0,4})\\.(?:0|[1-9][0-9]{0,4})\\z") ||
+            !Version.TryParse(value, out Version? version) || version.Major > 65535 || version.Minor > 65535 || version.Build > 65535)
+            throw new InvalidOperationException("The menu release version is invalid.");
+        return new Version(version.Major, version.Minor, version.Build, 0);
+    }
 
     private static OwnedFile AddOwnedFile(OwnedManifest owned, string relative, string kind, string hash)
     {
@@ -400,6 +436,13 @@ internal static class GameService
                 foreach (var file in files)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
+                    if (file.Kind == "menu")
+                    {
+                        var identity = AssemblyName.GetAssemblyName(transaction.GetStagedPath(file));
+                        if (identity.Name != "Interstellar Menu" || identity.Version == null || identity.Version.Revision != 0)
+                            throw new InvalidOperationException("The previous build is not a valid Interstellar Menu release.");
+                        owned.Document.DocumentElement!.SetAttribute("menuVersion", identity.Version.ToString(3));
+                    }
                     transaction.InstallStaged(file);
                     file.Element.SetAttribute("sha256", file.PreviousSha256);
                     file.Element.RemoveAttribute("previous");
@@ -443,6 +486,7 @@ internal static class GameService
         using (var reader = XmlReader.Create(path, new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null, MaxCharactersInDocument = 262144 })) document.Load(reader);
         var root = document.DocumentElement;
         if (root == null || root.Name != "Installation" || root.GetAttribute("product") != "Interstellar Menu" || root.GetAttribute("version") != "1.0.0" || !NormalizeDirectory(root.GetAttribute("gameDirectory")).Equals(directory, StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("The loader installation record does not match this game folder.");
+        if (root.HasAttribute("menuVersion")) ReadMenuVersion(root.GetAttribute("menuVersion"));
         var result = new OwnedManifest(document, path, directory);
         var duplicates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (XmlNode child in root.ChildNodes)

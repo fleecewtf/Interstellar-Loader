@@ -8,6 +8,11 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        if (LoaderSelfUpdate.TryRunHelper(e.Args, out int helperExitCode))
+        {
+            Shutdown(helperExitCode);
+            return;
+        }
         base.OnStartup(e);
 
         singleInstance = SingleInstanceCoordinator.AcquireOrActivate(() =>
@@ -22,6 +27,12 @@ public partial class App : Application
 
         var window = new MainWindow();
         MainWindow = window;
+        string? startupMessage = LoaderSelfUpdate.GetStartupMessage(e.Args);
+        window.Loaded += (_, _) =>
+        {
+            LoaderSelfUpdate.MarkStartupHealthy(e.Args);
+            if (!string.IsNullOrEmpty(startupMessage)) window.ShowStartupUpdateMessage(startupMessage!);
+        };
         window.InitializeProduction();
         window.Show();
     }

@@ -13,6 +13,7 @@
     <Version>1.0.0</Version>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Product>Interstellar Loader</Product>
     <Company>Interstellar</Company>
     <Description>Interstellar Menu desktop loader</Description>
@@ -30,6 +31,8 @@
     <Reference Include="System.Drawing" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.IO.Compression" />
+    <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.Xml.Linq" />
     <EmbeddedResource Include="$(MenuPayloadPath)" LogicalName="Interstellar.Loader.BetaMenu.dll" />
     <Resource Include="Assets\logo-icon.png" />
     <Resource Include="Assets\logo-wordmark.png" />

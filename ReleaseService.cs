@@ -39,8 +39,40 @@ internal static class ReleaseService
 
     private static async Task InstallPreparedAsync(string? gameDirectory, CancellationToken cancellationToken)
     {
+        using var checkTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        checkTimeout.CancelAfter(TimeSpan.FromSeconds(12));
+        UpdateCandidate? release = null;
+        try
+        {
+            var result = await UpdateService.CheckAsync(checkTimeout.Token).ConfigureAwait(false);
+            release = result.LatestMenuRelease;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { }
+        catch (Exception error) when (error is IOException || error is System.Net.Http.HttpRequestException)
+        {
+            GameService.LogError("Check menu release", error);
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        if (release != null)
+        {
+            await InstallReleaseAsync(gameDirectory, release, null, cancellationToken).ConfigureAwait(false);
+            return;
+        }
         byte[] payload = await Task.Run(GetMenuPayload, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
-        await GameService.InstallBundledMenuAsync(gameDirectory, payload, MenuSha256, false, cancellationToken).ConfigureAwait(false);
+        await GameService.InstallBundledMenuAsync(gameDirectory, payload, MenuSha256, false, cancellationToken,
+            CurrentMenuVersion, true).ConfigureAwait(false);
+    }
+
+    internal static async Task InstallReleaseAsync(string? gameDirectory, UpdateCandidate release,
+        IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+    {
+        if (release.Product != UpdateProduct.Menu) throw new InvalidOperationException("This release is not Interstellar Menu.");
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromMinutes(3));
+        using var staged = await UpdateService.StageAsync(release, progress, timeout.Token).ConfigureAwait(false);
+        byte[] payload = await Task.Run(() => File.ReadAllBytes(staged.FilePath), timeout.Token).ConfigureAwait(false);
+        await GameService.InstallBundledMenuAsync(gameDirectory, payload, release.Sha256, false, timeout.Token,
+            release.Version, true).ConfigureAwait(false);
     }
 }
