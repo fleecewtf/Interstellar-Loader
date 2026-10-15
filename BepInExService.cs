@@ -130,7 +130,7 @@ internal static class BepInExService
     {
         using var handler = new HttpClientHandler { AllowAutoRedirect = false };
         using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(90) };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("Interstellar-Loader/1.0.0");
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("Interstellar-Loader/1.0.1");
         client.DefaultRequestHeaders.Accept.ParseAdd("application/octet-stream");
         client.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
         Uri location = new Uri(PackageUrl);

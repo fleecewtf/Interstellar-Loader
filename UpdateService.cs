@@ -75,7 +75,7 @@ internal static class UpdateService
 {
     public const int PollIntervalSeconds = 15;
     public static string CurrentLoaderVersion => FormatVersion(Assembly.GetExecutingAssembly().GetName().Version);
-    public const string CurrentMenuVersion = "1.0.0";
+    public const string CurrentMenuVersion = "1.0.1";
     public const string UnavailableStatusText = "Updates are currently unavailable.";
 
     private static readonly UpdateCoordinator coordinator = new UpdateCoordinator(new GitHubReleaseSource());
@@ -89,7 +89,7 @@ internal static class UpdateService
         => coordinator.StageAsync(candidate, progress, cancellationToken);
 
     private static string FormatVersion(Version? version)
-        => version == null ? "1.0.0" : version.Major + "." + version.Minor + "." + Math.Max(0, version.Build);
+        => version == null ? "1.0.1" : version.Major + "." + version.Minor + "." + Math.Max(0, version.Build);
 }
 
 internal sealed class UpdateCoordinator

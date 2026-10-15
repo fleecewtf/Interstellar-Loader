@@ -6,9 +6,9 @@ namespace Interstellar.Loader;
 
 internal static class ReleaseService
 {
-    public const string CurrentMenuVersion = "1.0.0";
-    public const string DevelopmentMessage = "Interstellar Menu 1.0.0 beta";
-    public const string MenuSha256 = "62C92D2E393FB81E320B518E3E59F27BD967BC74AA29D49F88BCA02366B968A7";
+    public const string CurrentMenuVersion = "1.0.1";
+    public const string DevelopmentMessage = "Interstellar Menu 1.0.1";
+    public const string MenuSha256 = "9A8941EACEB989422D072DA5B39E3E2B074B2ED54309759738E3FDEFA9BFF895";
 
     internal static byte[] GetMenuPayload()
     {

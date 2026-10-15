@@ -245,7 +245,7 @@ public partial class MainWindow : Window
 
     public void ShowMenuDetails()
     {
-        ShowModal("Interstellar Menu", "Version 1.0.0", "Close", false);
+        ShowModal("Interstellar Menu", "Version 1.0.1", "Close", false);
     }
 
     private void ShowModal(string title, string description, string action, bool pathEditor)

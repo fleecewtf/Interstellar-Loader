@@ -659,14 +659,25 @@ internal static class GameService
     private static bool IsLeafDirectory(string? path) => !string.IsNullOrWhiteSpace(path) && path != "." && path != ".." && !Path.IsPathRooted(path) && path!.IndexOfAny(Path.GetInvalidFileNameChars()) < 0;
     private static string ReadBoundedText(string path)
     {
-        if (new FileInfo(path).Length > 1048576) throw new IOException("A Steam configuration file is too large to read.");
-        return File.ReadAllText(path);
+        using var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        if (input.Length > 1048576) throw new IOException("A Steam configuration file is too large to read.");
+        using var contents = new MemoryStream();
+        byte[] buffer = new byte[8192];
+        int count;
+        while ((count = input.Read(buffer, 0, buffer.Length)) != 0)
+        {
+            if (contents.Length + count > 1048576) throw new IOException("A Steam configuration file is too large to read.");
+            contents.Write(buffer, 0, count);
+        }
+        contents.Position = 0;
+        using var reader = new StreamReader(contents, Encoding.UTF8, true);
+        return reader.ReadToEnd();
     }
 
     public static string DiagnosticText(GameStatus status, Exception? error = null)
     {
         var text = new StringBuilder();
-        text.AppendLine("Interstellar Loader 1.0.0");
+        text.AppendLine("Interstellar Loader " + UpdateService.CurrentLoaderVersion);
         text.AppendLine("Menu release: " + ReleaseService.CurrentMenuVersion + " (" + ReleaseService.DevelopmentMessage + ")");
         text.AppendLine("Game folder: " + status.GameDirectory);
         text.AppendLine("Game installed: " + status.GameInstalled);
@@ -698,7 +709,10 @@ internal static class GameService
     private static string Redact(string text)
     {
         string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        return string.IsNullOrEmpty(userProfile) ? text : Regex.Replace(text, Regex.Escape(userProfile), "%USERPROFILE%", RegexOptions.IgnoreCase);
+        string value = string.IsNullOrEmpty(userProfile) ? text : Regex.Replace(text, Regex.Escape(userProfile), "%USERPROFILE%", RegexOptions.IgnoreCase);
+        return Regex.Replace(value, @"(?<![A-Za-z0-9])(?:%USERPROFILE%(?:[\\/]|$)|[A-Za-z]:[\\/]|\\\\|(?<!:)//)[^\r\n]*",
+            match => match.Value.StartsWith("%USERPROFILE%", StringComparison.OrdinalIgnoreCase) ? "%USERPROFILE%" : "%PATH%",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     }
 
     private static void ShellOpen(string target)

@@ -44,7 +44,11 @@ internal static class ReleaseCatalog
 {
     private static readonly IReadOnlyList<ReleaseEntry> MenuEntries = Array.AsReadOnly(new[]
     {
-        new ReleaseEntry("1.0.0", "First release", true,
+        new ReleaseEntry("1.0.1", "Security and privacy update", false,
+            new ReleaseSection("Improvements",
+                "More robust player name handling",
+                "Safer local file storage")),
+        new ReleaseEntry("1.0.0", "First release", false,
             new ReleaseSection("Basic Mods",
                 "WASD Fly",
                 "PC Button Click",
@@ -120,7 +124,12 @@ internal static class ReleaseCatalog
 
     private static readonly IReadOnlyList<ReleaseEntry> LoaderEntries = Array.AsReadOnly(new[]
     {
-        new ReleaseEntry("1.0.0", "First release", true,
+        new ReleaseEntry("1.0.1", "Security and privacy update", false,
+            new ReleaseSection("Privacy",
+                "Hide personal folder and network share details in diagnostics and error logs"),
+            new ReleaseSection("Menu",
+                "Includes Interstellar Menu v1.0.1")),
+        new ReleaseEntry("1.0.0", "First release", false,
             new ReleaseSection("Menu",
                 "Install and repair Interstellar Menu",
                 "Load the installed menu while Gorilla Tag is running",
