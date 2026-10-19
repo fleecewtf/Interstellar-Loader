@@ -616,14 +616,19 @@ internal static class GameService
         var pending = new Queue<Tuple<string, int>>();
         pending.Enqueue(Tuple.Create(plugins, 0));
         int checkedDirectories = 0;
+        int discoveredDirectories = 1;
         while (pending.Count > 0 && checkedDirectories++ < 128)
         {
             var next = pending.Dequeue();
             if ((File.GetAttributes(next.Item1) & FileAttributes.ReparsePoint) != 0) continue;
             string candidate = Path.Combine(next.Item1, "Interstellar Menu.dll");
             if (File.Exists(candidate) && (File.GetAttributes(candidate) & FileAttributes.ReparsePoint) == 0) yield return candidate;
-            if (next.Item2 >= 4) continue;
-            foreach (string child in Directory.EnumerateDirectories(next.Item1)) pending.Enqueue(Tuple.Create(child, next.Item2 + 1));
+            if (next.Item2 >= 4 || discoveredDirectories >= 128) continue;
+            foreach (string child in Directory.EnumerateDirectories(next.Item1))
+            {
+                pending.Enqueue(Tuple.Create(child, next.Item2 + 1));
+                if (++discoveredDirectories >= 128) break;
+            }
         }
     }
 
